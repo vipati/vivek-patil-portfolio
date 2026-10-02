@@ -8,14 +8,14 @@ It's a static site: plain HTML, CSS, and JavaScript with **no build step and no 
 
 | Section | What it does |
 | --- | --- |
-| Hero | Headline and value statement, with an animated terminal that "types" the key impact numbers |
-| Impact | Four headline metrics with count-up animations |
-| Experience | Timeline of roles with impact-focused bullets; extra Microsoft detail is in an expandable section |
-| Projects | **Two live in-browser demos:** a JavaScript port of the LLM gateway pipeline (compression, exact cache, semantic cache) and a simplified SQL guard from the NL-to-SQL agent |
-| Skills | Click a skill to highlight every place on the page where it was used |
-| How I work, Education, Contact | Principles, degrees, and a clear call to action (email, copy email, LinkedIn) |
+| Hero | Headline plus an **interactive terminal**: it types `whoami` and `impact`, then visitors can run `help`, `projects`, `stack`, `demo gateway`, `demo sql`, `contact`, and more |
+| About | Short story, a facts list, and four headline metrics with count-up animations |
+| Skills | Bento grid of six areas, including a to-scale chart of the release cycle going from 28 days to 4 |
+| Projects | Filterable gallery (All / Live demo / Open source / At Microsoft). **Two live in-browser demos** open in a dialog: a JavaScript port of the LLM gateway pipeline and a simplified SQL guard from the NL-to-SQL agent |
+| Experience | Vertical timeline of roles with impact-focused bullets, an expandable section for extra Microsoft detail, and education |
+| Contact | Email with a copy button, LinkedIn and GitHub, and a validated **contact form** (see [Contact form](#contact-form)) |
 
-It also has dark and light themes (following the system setting, with a toggle), a mobile layout, keyboard and screen-reader support, `prefers-reduced-motion` support, Open Graph and social preview tags, and structured data for search engines.
+The design is dark only, by choice. It has a mobile layout, keyboard and screen-reader support, `prefers-reduced-motion` support, Open Graph and social preview tags, and structured data for search engines.
 
 ## Project structure
 
@@ -30,10 +30,7 @@ portfolio/
 │   ├── css/styles.css
 │   ├── img/                        # favicon, social preview image, project screenshot
 │   └── js/
-│       ├── theme.js                # applies the saved theme before first paint
-│       ├── main.js                 # nav, animations, skill filter, copy email
-│       ├── gateway.js              # LLM gateway demo
-│       └── guard.js                # SQL guard demo
+│       └── main.js                 # terminal, project gallery + both demos, contact form
 └── .github/workflows/azure-static-web-apps.yml   # CI/CD to Azure
 ```
 
@@ -51,11 +48,24 @@ Then open http://localhost:5500. (Opening `index.html` directly from disk also m
 
 All content is in `index.html`. Search for the section (`<!-- EXPERIENCE -->`, `<!-- PROJECTS -->`, and so on) and edit the text.
 
-- **Skill highlighting:** each bullet and project has a `data-skills="..."` attribute. A skill button's `data-skill` value highlights every element whose list contains it.
+- **Projects:** the gallery cards and dialogs are generated from the `PROJECTS` array in `assets/js/main.js`. Each entry has its text, stats, GitHub link, filter tags (`kind`), and an optional live demo.
+- **Terminal commands:** the `CMDS` object in `assets/js/main.js`.
 - **Resume:** replace `assets/Vivek_Patil_Resume.pdf` and keep the same filename.
 - **Social preview image:** `assets/img/og-image.png` (1200×630).
 
 ---
+
+## Contact form
+
+Out of the box the form validates input and then gives the visitor a ready-to-send draft (copy button plus an "open in my email app" link). It never claims a message was sent.
+
+To have messages delivered to your inbox:
+
+1. Create a free form at [formspree.io](https://formspree.io) and copy its endpoint, for example `https://formspree.io/f/abcdwxyz`.
+2. In `assets/js/main.js`, set `const FORM_ENDPOINT = "https://formspree.io/f/abcdwxyz";`.
+3. Push. The Content-Security-Policy in `staticwebapp.config.json` already allows `https://formspree.io`.
+
+The form includes a hidden `_gotcha` field that Formspree uses to filter spam.
 
 ## Deploy to Azure Static Web Apps
 
@@ -158,7 +168,7 @@ az staticwebapp hostname set --name vivek-portfolio --resource-group rg-portfoli
 
 ### After the first deploy
 
-1. **Make the social preview image an absolute URL.** LinkedIn and Slack need a full URL. In `index.html`, change `content="/assets/img/og-image.png"` to `content="https://<your-domain>/assets/img/og-image.png"`. Also add `<link rel="canonical" href="https://<your-domain>/">`.
+1. **Keep the social preview URLs current.** `index.html` uses absolute URLs for `canonical`, `og:url`, `og:image`, and the JSON-LD `url`, pointing at `https://gray-rock-07b8c501e.6.azurestaticapps.net/`. If you add a custom domain, search for that hostname and replace it.
 2. **Check the preview** with LinkedIn's [Post Inspector](https://www.linkedin.com/post-inspector/). This also refreshes LinkedIn's cached copy of the page.
 3. **Share the link:**
    - LinkedIn: **Edit intro → Contact info → Website**, and add it to your **Featured** section.
@@ -181,4 +191,4 @@ az staticwebapp hostname set --name vivek-portfolio --resource-group rg-portfoli
 
 - **No framework.** Under 500 lines of vanilla JavaScript across four files. The page works without JavaScript too: all content is in the HTML, and the demos simply don't run.
 - **The demos are honest.** Both are labeled as simplified in-browser versions. The measured results shown on each card come from the real Python projects' benchmarks.
-- **Privacy.** The public resume PDF has no phone number, and the site uses no analytics or cookies. The theme choice is saved in `localStorage`.
+- **Privacy.** The public resume PDF has no phone number, and the site uses no analytics or cookies.
