@@ -1,9 +1,9 @@
 (() => {
   "use strict";
 
-  /* Set this to your Formspree (or similar) endpoint, e.g. "https://formspree.io/f/abcdwxyz",
-     to deliver messages. Left empty, the form validates and hands the visitor a ready-to-send draft. */
-  const FORM_ENDPOINT = "";
+  /* Contact form endpoint: the Azure Function in /api, which emails the message through Gmail.
+     If it can't be reached (for example on a plain local server), the visitor gets a ready-to-send draft. */
+  const FORM_ENDPOINT = "/api/contact";
 
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -495,32 +495,61 @@ Our annual conference will be held in Lisbon this year.`;
     e.preventDefault();
     const ok = Object.keys(rules).map(validate).every(Boolean);
     if (!ok) { $("[data-invalid] input, [data-invalid] textarea", form)?.focus(); return; }
-    if ($("#cf-company").value) return; // honeypot
     const data = { name: $("#cf-name").value.trim(), email: $("#cf-email").value.trim(), topic: $("#cf-topic").value, message: msg.value.trim() };
     const btn = $("#cf-submit");
+    const resetBtn = () => { btn.disabled = false; btn.innerHTML = 'Send message <span class="arrow">→</span>'; };
+    $("#draft-panel")?.remove();
 
-    if (FORM_ENDPOINT) {
-      btn.disabled = true; btn.textContent = "Sending…";
-      try {
-        const res = await fetch(FORM_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ ...data, _subject: `Portfolio: ${data.topic}` }) });
-        if (!res.ok) throw new Error(String(res.status));
+    btn.disabled = true; btn.textContent = "Sending…";
+    let reason = "The message couldn't be sent right now.";
+    try {
+      const res = await fetch(FORM_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ ...data, _gotcha: $("#cf-company").value }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body.ok) {
         $("#form-wrap").innerHTML = `<div class="form-status ok" role="status"><span class="badge ok">Message sent</span><p>Thanks, ${esc(data.name)}. I'll reply to ${esc(data.email)} within two working days.</p></div>`;
         return;
-      } catch {
-        btn.disabled = false; btn.innerHTML = 'Send message <span class="arrow">→</span>';
-        showToast("Couldn't send. Copy the draft below and email me instead.");
       }
-    }
+      if (res.status === 400 && body.fields) {
+        // The server disagreed with the browser's checks: show its messages next to the fields.
+        const map = { name: "cf-name", email: "cf-email", message: "cf-msg" };
+        Object.entries(body.fields).forEach(([k, m]) => {
+          const id = map[k]; if (!id) return;
+          $("#" + id + "-err").textContent = m; $("#" + id).closest(".field").setAttribute("data-invalid", "");
+        });
+        resetBtn(); $("[data-invalid] input, [data-invalid] textarea", form)?.focus();
+        return;
+      }
+      if (body.error) reason = body.error;
+    } catch { /* network error or no API (e.g. a plain local server): fall through to the draft */ }
+    resetBtn();
+    showToast("Couldn't send. Copy the draft below and email me instead.");
 
-    // No delivery service connected (or it failed): give the visitor a ready-to-send draft.
-    const draft = `To: vivekpatilusc@gmail.com\nSubject: ${data.topic}\n\nHi Vivek,\n\n${data.message}\n\n${data.name}\n${data.email}`;
-    const mailto = `mailto:vivekpatilusc@gmail.com?subject=${encodeURIComponent(data.topic)}&body=${encodeURIComponent(`Hi Vivek,\n\n${data.message}\n\n${data.name}`)}`;
-    let panel = $("#draft-panel");
-    if (!panel) { panel = document.createElement("div"); panel.id = "draft-panel"; panel.className = "form-status draft"; panel.setAttribute("role", "status"); form.after(panel); }
-    panel.innerHTML = `<span class="badge miss">Not sent yet</span>
-      <p>This page isn't connected to a mail service, so your message hasn't gone anywhere. Copy it and send it to <span class="mono">vivekpatilusc@gmail.com</span>.</p>
+    // Sending failed: give the visitor a ready-to-send draft so the message isn't lost.
+    const draft = `To: vivekpatilusc@gmail.com
+Subject: ${data.topic}
+
+Hi Vivek,
+
+${data.message}
+
+${data.name}
+${data.email}`;
+    const mailto = `mailto:vivekpatilusc@gmail.com?subject=${encodeURIComponent(data.topic)}&body=${encodeURIComponent(`Hi Vivek,
+
+${data.message}
+
+${data.name}`)}`;
+    const panel = document.createElement("div");
+    panel.id = "draft-panel"; panel.className = "form-status draft"; panel.setAttribute("role", "status");
+    panel.innerHTML = `<span class="badge miss">Not sent</span>
+      <p>${esc(reason)} Your message hasn't gone anywhere yet. Copy it and send it to <span class="mono">vivekpatilusc@gmail.com</span>.</p>
       <pre id="draft-text">${esc(draft)}</pre>
       <div class="socials"><button class="btn btn-signal btn-sm" type="button" id="copy-draft">Copy message</button><a class="btn btn-sm" href="${mailto}">Open in my email app</a></div>`;
+    form.after(panel);
     $("#copy-draft").addEventListener("click", () => copy(draft, "Message copied", $("#draft-text")));
   });
 

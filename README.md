@@ -24,7 +24,8 @@ portfolio/
 ├── index.html                      # the page
 ├── 404.html                        # not-found page
 ├── robots.txt
-├── staticwebapp.config.json        # Azure SWA: security headers, caching, 404, /resume redirect
+├── staticwebapp.config.json        # Azure SWA: security headers, caching, 404, /resume redirect, API runtime
+├── api/                            # contact form Azure Function (see "Contact form")
 ├── assets/
 │   ├── Vivek_Patil_Resume.pdf      # public resume (no phone number)
 │   ├── css/styles.css
@@ -44,6 +45,8 @@ python -m http.server 5500
 
 Then open http://localhost:5500. (Opening `index.html` directly from disk also mostly works, but a server is closer to production.)
 
+A plain static server doesn't run the `/api` function, so the contact form shows its "Not sent" draft panel locally. That's expected; it sends for real once deployed and configured.
+
 ## Edit the content
 
 All content is in `index.html`. Search for the section (`<!-- EXPERIENCE -->`, `<!-- PROJECTS -->`, and so on) and edit the text.
@@ -57,15 +60,44 @@ All content is in `index.html`. Search for the section (`<!-- EXPERIENCE -->`, `
 
 ## Contact form
 
-Out of the box the form validates input and then gives the visitor a ready-to-send draft (copy button plus an "open in my email app" link). It never claims a message was sent.
+The form posts to `/api/contact`, an Azure Function that ships with the site (Static Web Apps managed functions, included in the Free plan). The function emails the message to you through **Gmail SMTP** using a Gmail app password. Reply-To is set to the visitor, so pressing **Reply** answers them directly.
 
-To have messages delivered to your inbox:
+The function validates every field again on the server, caps the request size, drops submissions that fill the hidden `_gotcha` spam-trap field, strips line breaks from fields that go into email headers, and rate-limits bursts from one address.
 
-1. Create a free form at [formspree.io](https://formspree.io) and copy its endpoint, for example `https://formspree.io/f/abcdwxyz`.
-2. In `assets/js/main.js`, set `const FORM_ENDPOINT = "https://formspree.io/f/abcdwxyz";`.
-3. Push. The Content-Security-Policy in `staticwebapp.config.json` already allows `https://formspree.io`.
+If the function can't send (not configured yet, Gmail rejects the login, or no API when you serve the folder locally), the visitor sees a "Not sent" panel with their message ready to copy. The page never claims a message was sent unless the function confirmed it.
 
-The form includes a hidden `_gotcha` field that Formspree uses to filter spam.
+### Setup (one time)
+
+1. Turn on **2-Step Verification** for your Google account.
+2. Create an app password at <https://myaccount.google.com/apppasswords>. Name it something like "Portfolio contact form" and copy the 16-character password.
+3. In the [Azure portal](https://portal.azure.com), open your Static Web App, then **Settings → Environment variables**. On the **Production** environment, add:
+
+   | Name | Value |
+   | --- | --- |
+   | `GMAIL_USER` | your Gmail address |
+   | `GMAIL_APP_PASSWORD` | the app password, without spaces |
+   | `CONTACT_TO` | optional; send to a different inbox than `GMAIL_USER` |
+
+4. Select **Apply**. No redeploy is needed for setting changes.
+
+To revoke access later, delete the app password in your Google account. The form then shows visitors the copy-ready draft until you add a new one.
+
+### API code and tests
+
+```text
+api/
+├── host.json
+├── package.json
+├── src/contact.js              # validation, spam checks, email via nodemailer
+├── src/functions/contact.js    # registers POST /api/contact
+└── test/contact.test.js        # node:test suite (no Gmail needed)
+```
+
+```bash
+cd api && npm install && npm test
+```
+
+The API runs on Node.js 22 (`platform.apiRuntime` in `staticwebapp.config.json`).
 
 ## Deploy to Azure Static Web Apps
 
@@ -191,4 +223,4 @@ az staticwebapp hostname set --name vivek-portfolio --resource-group rg-portfoli
 
 - **No framework.** Under 500 lines of vanilla JavaScript across four files. The page works without JavaScript too: all content is in the HTML, and the demos simply don't run.
 - **The demos are honest.** Both are labeled as simplified in-browser versions. The measured results shown on each card come from the real Python projects' benchmarks.
-- **Privacy.** The public resume PDF has no phone number, and the site uses no analytics or cookies.
+- **Privacy.** The public resume PDF has no phone number, and the site uses no analytics or cookies. Contact form messages go straight to your inbox and aren't stored anywhere else.
