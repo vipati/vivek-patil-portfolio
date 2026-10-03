@@ -54,6 +54,7 @@ All content is in `index.html`. Search for the section (`<!-- EXPERIENCE -->`, `
 - **Projects:** the gallery cards and dialogs are generated from the `PROJECTS` array in `assets/js/main.js`. Each entry has its text, stats, GitHub link, filter tags (`kind`), and an optional live demo.
 - **Terminal commands:** the `CMDS` object in `assets/js/main.js`.
 - **Resume:** replace `assets/Vivek_Patil_Resume.pdf` and keep the same filename.
+- **Caching:** CSS and JS are revalidated on every visit, so edits show up right after a deploy. Images are cached for a week and the resume for an hour. The `?v=` on the CSS and JS links in `index.html` and `404.html` exists to evict copies that older versions of this config cached for a week; bump it if you ever lengthen CSS/JS caching again.
 - **Social preview image:** `assets/img/og-image.png` (1200×630).
 
 ---
